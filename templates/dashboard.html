@@ -1,45 +1,80 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Snow/Ice Dashboard</title>
+    <title>Winter Accessibility Map</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
-        #map { height: 100vh; }
+        body { margin:0; display:flex; height:100vh; font-family:sans-serif; }
+        #map { flex:3; }
+        #dashboard { flex:1; padding:10px; background:#f2f2f2; overflow:auto; }
+        .data-item { margin-bottom:10px; }
     </style>
 </head>
 <body>
-    <div id="map"></div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script>
-        var map = L.map('map').setView([43.4723, -80.5449], 15);
+<div id="map"></div>
+<div id="dashboard">
+    <h2>Live Sensor Dashboard</h2>
+    <div id="sensor-data">Waiting for data...</div>
+    <div class="data-item"><b>Current Status:</b> <span id="current-status">-</span></div>
+</div>
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+    var map = L.map('map').setView([43.4723,-80.5449], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        attribution:'&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-        async function fetchData() {
+    var markerLayer = L.layerGroup().addTo(map);
+    var currentMarker = null;
+
+    async function fetchData() {
+        try {
             const response = await fetch('/points');
             const points = await response.json();
 
-            points.forEach(point => {
-                let color = (point.distance < 10 || point.temperature <= 1) ? 'red' : 'green';
-                L.circleMarker([point.lat, point.lon], {
-                    radius: 8,
-                    color: color,
-                    fillOpacity: 0.7
-                }).addTo(map).bindPopup(
-                    `Distance: ${point.distance} cm<br>Temp: ${point.temperature} °C`
-                );
-            });
-        }
+            markerLayer.clearLayers();
 
-        setInterval(fetchData, 2000); // refresh every 2 seconds
-    </script>
+            if(points.length > 0){
+                const point = points[0];
+
+                let color = (point.status === "HAZARD") ? "red" : "green";
+
+                document.getElementById('sensor-data').innerHTML = `
+                    <div class="data-item">
+                        <b>Sensor:</b> (${point.lat.toFixed(4)}, ${point.lon.toFixed(4)})<br>
+                        Distance: ${point.distance.toFixed(2)} cm<br>
+                        Temperature: ${point.temperature.toFixed(2)} °C
+                    </div>
+                `;
+                document.getElementById('current-status').textContent = point.status;
+
+                currentMarker = L.circleMarker([point.lat, point.lon], {
+                    radius:10,
+                    color: color,
+                    fillColor: color,
+                    fillOpacity:0.8
+                }).bindPopup(
+                    `Distance: ${point.distance.toFixed(2)} cm<br>
+                     Temp: ${point.temperature.toFixed(2)} °C<br>
+                     Status: ${point.status}`
+                );
+
+                markerLayer.addLayer(currentMarker);
+            }
+
+        } catch(err) {
+            console.log("Error fetching data:", err);
+        }
+    }
+
+    fetchData();
+    setInterval(fetchData, 1000); // refresh every 1 second to match Arduino
+</script>
+
 </body>
 </html>
