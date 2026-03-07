@@ -5,25 +5,43 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
         body { margin:0; display:flex; height:100vh; font-family:sans-serif; }
         #map { flex:3; }
-        #dashboard { flex:1; padding:10px; background:#f2f2f2; overflow:auto; }
+        #dashboard { flex:1; padding:10px; background:#f2f2f2; overflow:auto; display:flex; flex-direction:column; }
         .data-item { margin-bottom:10px; }
+        #sensorGraph { width:100%; height:200px; margin-top:10px; }
+        #info-panel div { margin-bottom:5px; }
     </style>
 </head>
 <body>
 
-<div id="map"></div>
-<div id="dashboard">
-    <h2>Live Sensor Dashboard</h2>
-    <div id="sensor-data">Waiting for data...</div>
-    <div class="data-item"><b>Current Status:</b> <span id="current-status">-</span></div>
-</div>
+    <div id="map"></div>
+
+    <div id="dashboard">
+        <h2>Live Sensor Dashboard</h2>
+        <div id="sensor-data">Waiting for data...</div>
+        <div class="data-item"><b>Current Status:</b> <span id="current-status">-</span></div>
+
+        <div id="info-panel">
+            <div><b>Weather (Waterloo):</b> <span id="weather">Loading...</span></div>
+            <div><b>Date:</b> <span id="date"></span></div>
+            <div><b>Time:</b> <span id="time"></span></div>
+        </div>
+
+        <canvas id="sensorGraph"></canvas>
+    </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
+    // -----------------------------
+    // Map Setup
+    // -----------------------------
     var map = L.map('map').setView([43.4723,-80.5449], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
         attribution:'&copy; OpenStreetMap contributors'
@@ -32,6 +50,76 @@
     var markerLayer = L.layerGroup().addTo(map);
     var currentMarker = null;
 
+    // -----------------------------
+    // Chart Setup (Temperature over time)
+    // -----------------------------
+    var tempData = [];
+    var timeLabels = [];
+    var ctx = document.getElementById('sensorGraph').getContext('2d');
+    var chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: timeLabels,
+            datasets: [{
+                label: 'Temperature (°C)',
+                data: tempData,
+                borderColor: 'blue',
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            animation: false,
+            scales: { x: { title: { display: true, text: 'Time' } } }
+        }
+    });
+
+    function updateGraph(temp) {
+        let now = new Date().toLocaleTimeString();
+        timeLabels.push(now);
+        tempData.push(temp);
+        if(timeLabels.length > 20){
+            timeLabels.shift();
+            tempData.shift();
+        }
+        chart.update();
+    }
+
+    // -----------------------------
+    // Weather Info
+    // -----------------------------
+    async function fetchWeather(){
+        const apiKey = 'YOUR_API_KEY'; // replace with OpenWeatherMap key
+        const city = 'Waterloo,CA';
+        const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${apiKey}`;
+        
+        try{
+            const res = await fetch(url);
+            const data = await res.json();
+            document.getElementById('weather').textContent =
+                `${data.weather[0].description}, ${data.main.temp.toFixed(1)} °C`;
+        }catch(err){
+            console.log('Weather fetch error:',err);
+        }
+    }
+
+    setInterval(fetchWeather, 60000); // update every minute
+    fetchWeather();
+
+    // -----------------------------
+    // Date & Time
+    // -----------------------------
+    function updateDateTime(){
+        const now = new Date();
+        document.getElementById('date').textContent = now.toLocaleDateString();
+        document.getElementById('time').textContent = now.toLocaleTimeString();
+    }
+    setInterval(updateDateTime, 1000);
+    updateDateTime();
+
+    // -----------------------------
+    // Fetch Sensor Data from Flask
+    // -----------------------------
     async function fetchData() {
         try {
             const response = await fetch('/points');
@@ -42,8 +130,10 @@
             if(points.length > 0){
                 const point = points[0];
 
+                // Correct coloring based on status
                 let color = (point.status === "HAZARD") ? "red" : "green";
 
+                // Update dashboard panel
                 document.getElementById('sensor-data').innerHTML = `
                     <div class="data-item">
                         <b>Sensor:</b> (${point.lat.toFixed(4)}, ${point.lon.toFixed(4)})<br>
@@ -53,6 +143,10 @@
                 `;
                 document.getElementById('current-status').textContent = point.status;
 
+                // Update chart
+                updateGraph(point.temperature);
+
+                // Add/update marker
                 currentMarker = L.circleMarker([point.lat, point.lon], {
                     radius:10,
                     color: color,
@@ -63,7 +157,6 @@
                      Temp: ${point.temperature.toFixed(2)} °C<br>
                      Status: ${point.status}`
                 );
-
                 markerLayer.addLayer(currentMarker);
             }
 
@@ -73,8 +166,8 @@
     }
 
     fetchData();
-    setInterval(fetchData, 1000); // refresh every 1 second to match Arduino
-</script>
+    setInterval(fetchData, 1000); // update every 1 second to match Arduino
 
+</script>
 </body>
 </html>
