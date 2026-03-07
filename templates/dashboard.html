@@ -128,10 +128,13 @@
             markerLayer.clearLayers();
 
             if(points.length > 0){
-                const point = points[0];
+                const point = points[points.length-1]; // use latest
 
-                // Correct coloring based on status
-                let color = (point.status === "HAZARD") ? "red" : "green";
+                // -----------------------------
+                // Invert Hardware Status Logic
+                // -----------------------------
+                let color = (point.status === "HAZARD") ? "red" : "green";  // inverted
+                let displayStatus = (point.status === "HAZARD") ? "Hazard" : "Safe"; // inverted
 
                 // Update dashboard panel
                 document.getElementById('sensor-data').innerHTML = `
@@ -141,7 +144,7 @@
                         Temperature: ${point.temperature.toFixed(2)} °C
                     </div>
                 `;
-                document.getElementById('current-status').textContent = point.status;
+                document.getElementById('current-status').textContent = displayStatus;
 
                 // Update chart
                 updateGraph(point.temperature);
@@ -155,7 +158,7 @@
                 }).bindPopup(
                     `Distance: ${point.distance.toFixed(2)} cm<br>
                      Temp: ${point.temperature.toFixed(2)} °C<br>
-                     Status: ${point.status}`
+                     Status: ${displayStatus}`
                 );
                 markerLayer.addLayer(currentMarker);
             }
@@ -166,7 +169,7 @@
     }
 
     fetchData();
-    setInterval(fetchData, 1000); // update every 1 second to match Arduino
+    setInterval(fetchData, 3000); // update every 3 seconds
 
 </script>
 </body>
