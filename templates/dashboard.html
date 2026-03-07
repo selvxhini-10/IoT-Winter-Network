@@ -89,22 +89,19 @@
     // Weather Info
     // -----------------------------
     async function fetchWeather(){
-        const apiKey = 'YOUR_API_KEY'; // replace with OpenWeatherMap key
-        const city = 'Waterloo,CA';
-        const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${apiKey}`;
-        
-        try{
-            const res = await fetch(url);
-            const data = await res.json();
-            document.getElementById('weather').textContent =
-                `${data.weather[0].description}, ${data.main.temp.toFixed(1)} °C`;
-        }catch(err){
-            console.log('Weather fetch error:',err);
-        }
+    try{
+        const res = await fetch('/weather');
+        const data = await res.json();
+        document.getElementById('weather').textContent =
+            `Temp: ${data.temperature} °C, Humidity: ${data.humidity}%, Snow Depth: ${data.snow_depth} cm`;
+    }catch(err){
+        console.log('Weather fetch error:',err);
     }
+}
 
-    setInterval(fetchWeather, 60000); // update every minute
-    fetchWeather();
+// update every 1 minute
+setInterval(fetchWeather, 60000);
+fetchWeather();
 
     // -----------------------------
     // Date & Time
