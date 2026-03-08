@@ -43,6 +43,3 @@ The system implements unsupervised machine learning anomaly detection using scik
 
 - <img width="1507" height="786" alt="Screenshot_2026-03-07_at_9 52 10_PM" src="https://github.com/user-attachments/assets/d9709c35-5346-4d50-a263-48b4e137dde6" />
 - <img width="1503" height="780" alt="Screenshot_2026-03-07_at_9 52 57_PM" src="https://github.com/user-attachments/assets/1ec0f43a-07f5-455f-bb1c-bdab297cd8aa" />
-![Uploading Screenshot_2026-03-07_at_9.54.21_PM.png…]()
-
-
