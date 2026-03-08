@@ -1,13 +1,4 @@
-/*
-   Temperature Sensor Code: https://www.geeksforgeeks.org/electronics-engineering/arduino-temperature-sensor/
-
-   HC-SR04 example sketch
-
-   https://create.arduino.cc/projecthub/Isaac100/getting-started-with-the-hc-sr04-ultrasonic-sensor-036380
-
-   by Isaac100
-
-*/
+#include <Arduino.h>
 
 // -------- Ultrasonic Pins --------
 const int trigPin = 9;
@@ -20,6 +11,9 @@ const int tempPin = A0;
 const int redLED = 7;
 const int whiteLED = 6;
 
+// -------- Servo Pin --------
+const int servoPin = 11;
+
 // -------- Variables --------
 float duration;
 float distance;
@@ -27,6 +21,27 @@ float temperatureC;
 
 // -------- Threshold --------
 const float hazardDistance = 4.0; // cm
+
+// -------- Hazard Timer --------
+unsigned long hazardStartTime = 0;
+bool hazardActive = false;
+
+// -----------------------------
+// Servo helper function using PWM (UNO R4 compatible)
+// -----------------------------
+void setServoAngle(int angle) {
+  // Convert 0-180° to 1000-2000 µs pulse
+  int pulse = map(angle, 0, 180, 1000, 2000);
+
+  // Generate a single pulse
+  digitalWrite(servoPin, HIGH);
+  delayMicroseconds(pulse);
+  digitalWrite(servoPin, LOW);
+
+  // Wait remainder of 20ms period
+  int delayMs = 20 - pulse / 1000;
+  if (delayMs > 0) delay(delayMs); // <-- FIXED here
+}
 
 void setup() {
   Serial.begin(9600);
@@ -36,10 +51,11 @@ void setup() {
 
   pinMode(redLED, OUTPUT);
   pinMode(whiteLED, OUTPUT);
+
+  pinMode(servoPin, OUTPUT);
 }
 
 void loop() {
-
   // ==========================
   // ULTRASONIC SENSOR
   // ==========================
@@ -49,7 +65,7 @@ void loop() {
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
 
-  duration = pulseIn(echoPin, HIGH, 30000);  // timeout protection
+  duration = pulseIn(echoPin, HIGH, 30000); // timeout protection
   distance = duration * 0.0343 / 2.0;
 
   // ==========================
@@ -74,10 +90,28 @@ void loop() {
     digitalWrite(redLED, HIGH);
     digitalWrite(whiteLED, LOW);
     Serial.println("STATUS: HAZARD DETECTED");
+
+    // start timer if hazard just started
+    if (!hazardActive) {
+      hazardActive = true;
+      hazardStartTime = millis();
+    }
+
+    // tilt servo if hazard has been active for 10 seconds
+    if (millis() - hazardStartTime >= 5000) {
+      setServoAngle(0); // tilt
+    }
+
   } else {
     digitalWrite(redLED, LOW);
     digitalWrite(whiteLED, HIGH);
     Serial.println("STATUS: SAFE");
+
+    // reset hazard timer
+    hazardActive = false;
+
+    // reset servo upright
+    setServoAngle(60);
   }
 
   Serial.println("-------------------");
