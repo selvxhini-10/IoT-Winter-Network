@@ -1,173 +1,1103 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Winter Accessibility Map</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Region of Waterloo — Winter Accessibility Dashboard</title>
 
-    <!-- Leaflet CSS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&family=Source+Serif+4:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        body { margin:0; display:flex; height:100vh; font-family:sans-serif; }
-        #map { flex:3; }
-        #dashboard { flex:1; padding:10px; background:#f2f2f2; overflow:auto; display:flex; flex-direction:column; }
-        .data-item { margin-bottom:10px; }
-        #sensorGraph { width:100%; height:200px; margin-top:10px; }
-        #info-panel div { margin-bottom:5px; }
+        :root {
+            --wl-blue:       #1a6faf;
+            --wl-blue-mid:   #2e9fd4;
+            --wl-green:      #4aab3c;
+            --wl-gold:       #f5c12e;
+            --wl-gold-dim:   #e6b018;
+            --white:         #ffffff;
+            --bg:            #f3f6fa;
+            --border:        #d8dfe9;
+            --border-mid:    #b8c4d4;
+            --text-h:        #111827;
+            --text-body:     #374151;
+            --text-muted:    #6b7280;
+            --text-faint:    #adb5bd;
+            --safe:          #2e7d4f;
+            --safe-bg:       #eaf5ee;
+            --safe-border:   #90cca7;
+            --hazard:        #b91c1c;
+            --hazard-bg:     #fef2f2;
+            --hazard-border: #fca5a5;
+            --anomaly:       #7c3aed;
+            --anomaly-bg:    #f5f3ff;
+            --anomaly-border:#c4b5fd;
+            --shadow-sm:     0 1px 3px rgba(0,0,0,0.08);
+            --shadow-md:     0 2px 10px rgba(0,0,0,0.10);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text-body);
+            font-family: 'Source Sans 3', sans-serif;
+            font-size: 13px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── HEADER ── */
+        #header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 20px; height: 56px;
+            background: var(--white);
+            border-bottom: 3px solid var(--wl-blue);
+            flex-shrink: 0; box-shadow: var(--shadow-sm);
+        }
+
+        .header-left { display: flex; align-items: center; gap: 16px; }
+
+        .logo-box {
+            height: 42px; width: 130px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; overflow: hidden;
+        }
+
+        .logo-box img { height: 100%; width: 100%; object-fit: contain; }
+
+        .logo-svg-fallback { display: none; align-items: center; gap: 7px; }
+
+        .hdr-divider { width: 1px; height: 28px; background: var(--border-mid); }
+
+        .hdr-titles .title { font-size: 14px; font-weight: 600; color: var(--text-h); }
+        .hdr-titles .sub   { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .live-pill {
+            display: flex; align-items: center; gap: 6px;
+            background: var(--safe-bg); border: 1px solid var(--safe-border);
+            border-radius: 20px; padding: 3px 11px 3px 8px;
+            font-size: 11px; font-weight: 600; color: var(--safe);
+        }
+
+        .live-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--safe);
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+        .clock-group { text-align: right; }
+        #clock-display { font-size: 14px; font-weight: 600; color: var(--text-h); font-variant-numeric: tabular-nums; }
+        #date-display  { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+
+        /* ── MAIN LAYOUT ── */
+        #main { display: flex; flex: 1; overflow: hidden; }
+
+        /* ── MAP ── */
+        #map-container { flex: 1; position: relative; border-right: 1px solid var(--border); }
+        #map { width: 100%; height: 100%; }
+
+        .leaflet-container { background: #dce8f0 !important; }
+
+        .leaflet-popup-content-wrapper {
+            background: var(--white) !important; border: 1px solid var(--border-mid) !important;
+            border-radius: 4px !important; box-shadow: var(--shadow-md) !important;
+            color: var(--text-body) !important; font-family: 'Source Sans 3', sans-serif !important;
+            font-size: 12px !important;
+        }
+
+        .leaflet-popup-tip { background: var(--white) !important; }
+
+        .map-legend {
+            position: absolute; bottom: 20px; left: 12px; z-index: 500;
+            background: rgba(255,255,255,0.96); border: 1px solid var(--border);
+            border-top: 3px solid var(--wl-blue); border-radius: 4px;
+            padding: 10px 14px; box-shadow: var(--shadow-sm);
+        }
+
+        .map-legend-title {
+            font-size: 10px; font-weight: 700; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 7px;
+        }
+
+        .legend-item {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 12px; color: var(--text-body); margin-bottom: 4px;
+        }
+
+        .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+        /* ── SIDEBAR ── */
+        #sidebar {
+            width: 340px; background: var(--bg);
+            display: flex; flex-direction: column;
+            overflow-y: auto; overflow-x: hidden; flex-shrink: 0;
+        }
+
+        #sidebar::-webkit-scrollbar { width: 4px; }
+        #sidebar::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
+
+        /* Panel */
+        .panel { background: var(--white); border-bottom: 1px solid var(--border); }
+
+        .panel-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 9px 16px; border-bottom: 1px solid var(--border);
+            border-left: 3px solid var(--wl-blue);
+        }
+
+        .panel-header.green  { border-left-color: var(--wl-green); }
+        .panel-header.gold   { border-left-color: var(--wl-gold-dim); }
+        .panel-header.purple { border-left-color: var(--anomaly); }
+
+        .panel-title {
+            font-size: 11px; font-weight: 700; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.08em;
+        }
+
+        .panel-meta { font-size: 10px; color: var(--text-faint); }
+
+        .panel-body { padding: 14px 16px; }
+
+        /* Status badge */
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 6px 14px; border-radius: 3px;
+            font-size: 13px; font-weight: 700; letter-spacing: 0.04em; border: 1px solid;
+        }
+
+        .status-badge.safe   { color: var(--safe);   background: var(--safe-bg);   border-color: var(--safe-border); }
+        .status-badge.hazard { color: var(--hazard);  background: var(--hazard-bg);  border-color: var(--hazard-border); }
+
+        .status-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+
+        .node-lbl { font-size: 11px; color: var(--text-muted); }
+        .node-id  { font-size: 13px; font-weight: 700; color: var(--wl-blue); }
+
+        /* Metric table */
+        .metric-table { width: 100%; border-collapse: collapse; }
+
+        .metric-table td { padding: 7px 0; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .metric-table tr:last-child td { border-bottom: none; }
+
+        .m-label { font-size: 12px; color: var(--text-muted); width: 52%; }
+        .m-value { font-size: 14px; font-weight: 600; color: var(--text-h); text-align: right; }
+        .m-unit  { font-size: 11px; font-weight: 400; color: var(--text-muted); margin-left: 2px; }
+
+        /* AI Risk bar */
+        .ai-badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            background: linear-gradient(135deg, #eef4ff, #e8f5ff);
+            border: 1px solid #b8d4f0; border-radius: 3px;
+            padding: 3px 8px; font-size: 10px; font-weight: 600; color: var(--wl-blue);
+        }
+
+        .risk-bar-wrap { margin-top: 10px; }
+
+        .risk-bar-label {
+            display: flex; justify-content: space-between;
+            font-size: 11px; color: var(--text-muted); margin-bottom: 4px;
+        }
+
+        .risk-bar-track {
+            height: 8px; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+        }
+
+        .risk-bar-fill {
+            height: 100%; border-radius: 4px;
+            transition: width 0.6s ease, background 0.4s;
+        }
+
+        /* ── WEATHER ── */
+        .wx-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+
+        .wx-tile {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 5px; padding: 10px 8px 8px; text-align: center;
+            transition: border-color 0.2s;
+        }
+
+        .wx-tile:hover { border-color: var(--wl-blue-mid); }
+
+        .wx-icon-wrap { width: 36px; height: 36px; margin: 0 auto 5px; display: flex; align-items: center; justify-content: center; }
+        .wx-icon-wrap svg { width: 100%; height: 100%; }
+
+        .wx-val { font-size: 17px; font-weight: 700; color: var(--text-h); line-height: 1; }
+        .wx-lbl { font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.07em; margin-top: 3px; }
+
+        .wx-desc { font-size: 11px; color: var(--text-muted); font-style: italic; margin: 5px 0 9px; }
+
+        .wx-extra { display: flex; gap: 8px; }
+
+        .wx-extra-item { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; }
+        .wx-extra-lbl { font-size: 10px; color: var(--text-muted); margin-bottom: 2px; }
+        .wx-extra-val { font-size: 14px; font-weight: 600; color: var(--text-h); }
+
+        /* API pill */
+        .api-pill {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; border: 1px solid;
+        }
+
+        .api-pill.ok    { color: var(--safe);   background: var(--safe-bg);   border-color: var(--safe-border); }
+        .api-pill.warn  { color: #7a5500;        background: #fff8e8;          border-color: var(--wl-gold); }
+        .api-pill.error { color: var(--hazard);  background: var(--hazard-bg); border-color: var(--hazard-border); }
+        .api-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+        /* Chart */
+        .chart-wrap { padding: 14px 16px; flex: 1; min-height: 150px; display: flex; flex-direction: column; }
+        #sensorGraph { flex: 1; }
+
+        /* ── ANOMALY PANEL ── */
+        .anomaly-summary {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .anomaly-score-ring {
+            position: relative;
+            width: 64px; height: 64px; flex-shrink: 0;
+        }
+
+        .anomaly-score-ring svg { width: 64px; height: 64px; transform: rotate(-90deg); }
+
+        .anomaly-score-text {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center; line-height: 1;
+        }
+
+        .anomaly-score-num { font-size: 15px; font-weight: 700; color: var(--text-h); }
+        .anomaly-score-lbl { font-size: 8px; color: var(--text-muted); letter-spacing: 0.05em; margin-top: 1px; }
+
+        .anomaly-details { flex: 1; padding-left: 14px; }
+
+        .anomaly-state {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 10px; border-radius: 3px;
+            font-size: 11px; font-weight: 700; border: 1px solid;
+            margin-bottom: 6px;
+        }
+
+        .anomaly-state.normal  { color: var(--safe);   background: var(--safe-bg);   border-color: var(--safe-border); }
+        .anomaly-state.anomaly { color: var(--anomaly); background: var(--anomaly-bg); border-color: var(--anomaly-border); }
+
+        .anomaly-reason {
+            font-size: 11px; color: var(--text-muted); line-height: 1.5;
+        }
+
+        /* Anomaly feature breakdown */
+        .feature-list { margin-top: 10px; }
+
+        .feature-row {
+            display: flex; align-items: center; gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .feature-name { font-size: 11px; color: var(--text-muted); width: 80px; flex-shrink: 0; }
+
+        .feature-bar-track {
+            flex: 1; height: 6px; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 3px; overflow: hidden;
+        }
+
+        .feature-bar-fill {
+            height: 100%; border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .feature-val {
+            font-size: 11px; font-weight: 600; color: var(--text-h);
+            width: 38px; text-align: right; flex-shrink: 0;
+        }
+
+        /* Anomaly event log */
+        .anomaly-log { margin-top: 10px; }
+
+        .log-title {
+            font-size: 10px; font-weight: 700; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;
+        }
+
+        .log-item {
+            display: flex; align-items: flex-start; gap: 8px;
+            padding: 5px 0; border-bottom: 1px solid var(--border);
+            font-size: 11px;
+        }
+
+        .log-item:last-child { border-bottom: none; }
+
+        .log-dot {
+            width: 7px; height: 7px; border-radius: 50%; margin-top: 3px; flex-shrink: 0;
+        }
+
+        .log-dot.anom  { background: var(--anomaly); }
+        .log-dot.norm  { background: var(--safe); }
+
+        .log-time { color: var(--text-faint); flex-shrink: 0; width: 50px; }
+        .log-msg  { color: var(--text-body); flex: 1; }
+        .log-score { color: var(--text-muted); flex-shrink: 0; }
+
+        /* STATUS BAR */
+        #statusbar {
+            height: 26px; background: var(--white); border-top: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 16px; gap: 22px; flex-shrink: 0;
+        }
+
+        .sb-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-muted); font-weight: 500; }
+        .sb-dot  { width: 5px; height: 5px; border-radius: 50%; }
+        .sb-dot.green  { background: var(--safe); }
+        .sb-dot.amber  { background: var(--wl-gold-dim); }
+        .sb-dot.red    { background: var(--hazard); }
+        .sb-dot.blue   { background: var(--wl-blue); }
+        .sb-dot.purple { background: var(--anomaly); }
+        .sb-dot.grey   { background: var(--text-faint); }
+
+        #update-flash {
+            position: fixed; top: 62px; right: 16px;
+            background: var(--white); border: 1px solid var(--border-mid);
+            border-left: 3px solid var(--wl-blue); color: var(--text-muted);
+            font-size: 11px; font-weight: 500; padding: 5px 12px; border-radius: 3px;
+            box-shadow: var(--shadow-sm); opacity: 0; transition: opacity 0.25s;
+            pointer-events: none; z-index: 900;
+        }
+
+        #update-flash.show { opacity: 1; }
     </style>
 </head>
 <body>
 
-    <div id="map"></div>
+<div id="update-flash">↺ Data refreshed</div>
 
-    <div id="dashboard">
-        <h2>Live Sensor Dashboard</h2>
-        <div id="sensor-data">Waiting for data...</div>
-        <div class="data-item"><b>Current Status:</b> <span id="current-status">-</span></div>
+<!-- HEADER -->
+<div id="header">
+    <div class="header-left">
+        <div class="logo-box">
+            <img src="image.png" alt="Region of Waterloo"
+                 onerror="this.style.display='none'; document.getElementById('logo-svg').style.display='flex';">
+            <div id="logo-svg" class="logo-svg-fallback">
+                <svg width="32" height="32" viewBox="0 0 60 60" fill="none">
+                    <path d="M3 10 L20 50 L30 28 L40 50 L57 10 L47 10 L40 32 L30 12 L20 32 L13 10 Z" fill="#1a6faf"/>
+                    <path d="M23 8 Q30 2 37 8 L37 26 Q30 32 23 26 Z" fill="#f5c12e"/>
+                    <path d="M24 10 Q30 4 36 10 Q30 16 24 10Z" fill="#4aab3c"/>
+                    <path d="M27 14 L30 10 L33 14 L30 22 Z" fill="white" opacity="0.9"/>
+                </svg>
+                <div style="font-family:'Source Serif 4',serif; font-size:11px; font-weight:600; color:#1a6faf; line-height:1.2;">Region of<br>Waterloo</div>
+            </div>
+        </div>
+        <div class="hdr-divider"></div>
+        <div class="hdr-titles">
+            <div class="title">Winter Accessibility Dashboard</div>
+            <div class="sub">IoT Sensor Network — Anomaly Detection Active</div>
+        </div>
+    </div>
+    <div class="header-right">
+        <div class="live-pill"><div class="live-dot"></div>Live</div>
+        <div class="clock-group">
+            <div id="clock-display">--:--:--</div>
+            <div id="date-display">—</div>
+        </div>
+    </div>
+</div>
 
-        <div id="info-panel">
-            <div><b>Weather (Waterloo):</b> <span id="weather">Loading...</span></div>
-            <div><b>Date:</b> <span id="date"></span></div>
-            <div><b>Time:</b> <span id="time"></span></div>
+<!-- MAIN -->
+<div id="main">
+
+    <!-- MAP -->
+    <div id="map-container">
+        <div id="map"></div>
+        <div class="map-legend">
+            <div class="map-legend-title">Sensor Status</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#2e7d4f;"></div>Safe — Passable</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#b91c1c;"></div>Hazard — Obstruction</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#7c3aed;"></div>Anomaly — Investigate</div>
+        </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+
+        <!-- Node Status -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">Node Status</span>
+                <span class="panel-meta" id="last-update">—</span>
+            </div>
+            <div class="panel-body">
+                <div class="status-row">
+                    <div class="status-badge safe" id="status-badge">
+                        <span id="status-icon">✓</span>
+                        <span id="status-text">SAFE</span>
+                    </div>
+                    <div style="text-align:right">
+                        <div class="node-lbl">Sensor Node</div>
+                        <div class="node-id">#WL-001</div>
+                    </div>
+                </div>
+                <table class="metric-table">
+                    <tr><td class="m-label">Obstacle Distance</td><td class="m-value" id="val-distance">—<span class="m-unit">cm</span></td></tr>
+                    <tr><td class="m-label">Temperature</td><td class="m-value" id="val-temp">—<span class="m-unit">°C</span></td></tr>
+                    <tr><td class="m-label">Latitude</td><td class="m-value" id="val-lat" style="font-size:12px;">—</td></tr>
+                    <tr><td class="m-label">Longitude</td><td class="m-value" id="val-lon" style="font-size:12px;">—</td></tr>
+                </table>
+
+                <!-- AI Risk Score -->
+                <div style="margin-top:13px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:7px;">
+                        <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em;">Risk Score</span>
+                        <span class="ai-badge">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                            AI Classification
+                        </span>
+                    </div>
+                    <div class="risk-bar-wrap">
+                        <div class="risk-bar-label">
+                            <span id="risk-label">Calculating…</span>
+                            <span id="risk-pct" style="font-weight:600;">—</span>
+                        </div>
+                        <div class="risk-bar-track">
+                            <div class="risk-bar-fill" id="risk-bar" style="width:0%; background:#2e7d4f;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <canvas id="sensorGraph"></canvas>
+        <!-- Anomaly Detection -->
+        <div class="panel">
+            <div class="panel-header purple">
+                <span class="panel-title">Anomaly Detection</span>
+                <span class="panel-meta" id="anomaly-model-info">LOF · k=5 · warm-up 10pts</span>
+            </div>
+            <div class="panel-body">
+                <div class="anomaly-summary">
+                    <!-- SVG ring score -->
+                    <div class="anomaly-score-ring">
+                        <svg viewBox="0 0 64 64">
+                            <circle cx="32" cy="32" r="26" fill="none" stroke="#e9ecef" stroke-width="6"/>
+                            <circle cx="32" cy="32" r="26" fill="none"
+                                id="anomaly-ring"
+                                stroke="#2e7d4f" stroke-width="6"
+                                stroke-dasharray="163.4" stroke-dashoffset="163.4"
+                                stroke-linecap="round"
+                                style="transition: stroke-dashoffset 0.7s ease, stroke 0.4s;"/>
+                        </svg>
+                        <div class="anomaly-score-text">
+                            <div class="anomaly-score-num" id="lof-score-display">—</div>
+                            <div class="anomaly-score-lbl">LOF</div>
+                        </div>
+                    </div>
+
+                    <div class="anomaly-details">
+                        <div class="anomaly-state normal" id="anomaly-state-badge">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            <span id="anomaly-state-text">Normal</span>
+                        </div>
+                        <div class="anomaly-reason" id="anomaly-reason">
+                            Sensor readings within expected range. No deviations detected.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature deviation bars -->
+                <div class="feature-list">
+                    <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:7px;">Feature Deviation from Baseline</div>
+
+                    <div class="feature-row">
+                        <span class="feature-name">Distance</span>
+                        <div class="feature-bar-track">
+                            <div class="feature-bar-fill" id="feat-dist-bar" style="width:0%; background:#1a6faf;"></div>
+                        </div>
+                        <span class="feature-val" id="feat-dist-val">—</span>
+                    </div>
+
+                    <div class="feature-row">
+                        <span class="feature-name">Temperature</span>
+                        <div class="feature-bar-track">
+                            <div class="feature-bar-fill" id="feat-temp-bar" style="width:0%; background:#1a6faf;"></div>
+                        </div>
+                        <span class="feature-val" id="feat-temp-val">—</span>
+                    </div>
+
+                    <div class="feature-row">
+                        <span class="feature-name">Δ Distance</span>
+                        <div class="feature-bar-track">
+                            <div class="feature-bar-fill" id="feat-ddist-bar" style="width:0%; background:#1a6faf;"></div>
+                        </div>
+                        <span class="feature-val" id="feat-ddist-val">—</span>
+                    </div>
+
+                    <div class="feature-row">
+                        <span class="feature-name">Δ Temperature</span>
+                        <div class="feature-bar-track">
+                            <div class="feature-bar-fill" id="feat-dtemp-bar" style="width:0%; background:#1a6faf;"></div>
+                        </div>
+                        <span class="feature-val" id="feat-dtemp-val">—</span>
+                    </div>
+                </div>
+
+                <!-- Event log -->
+                <div class="anomaly-log">
+                    <div class="log-title">Event Log</div>
+                    <div id="anomaly-log-items">
+                        <div class="log-item" style="color:var(--text-faint); font-size:11px;">Collecting baseline data…</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Atmospheric Conditions -->
+        <div class="panel">
+            <div class="panel-header green">
+                <span class="panel-title">Atmospheric Conditions — Waterloo</span>
+                <span id="wx-api-pill" class="api-pill warn"><span class="api-dot"></span>Connecting</span>
+            </div>
+            <div class="panel-body">
+                <div class="wx-grid">
+                    <div class="wx-tile">
+                        <div class="wx-icon-wrap">
+                            <svg viewBox="0 0 36 36" fill="none">
+                                <rect x="15" y="4" width="6" height="18" rx="3" fill="#e0e8f0" stroke="#b8c8dc" stroke-width="1"/>
+                                <rect x="16.5" y="5.5" width="3" height="13" rx="1.5" fill="#1a6faf"/>
+                                <circle cx="18" cy="26" r="5" fill="#1a6faf"/>
+                                <circle cx="18" cy="26" r="3" fill="#2e9fd4"/>
+                                <line x1="22" y1="8"  x2="24" y2="8"  stroke="#9aabbc" stroke-width="1"/>
+                                <line x1="22" y1="12" x2="24" y2="12" stroke="#9aabbc" stroke-width="1"/>
+                                <line x1="22" y1="16" x2="24" y2="16" stroke="#9aabbc" stroke-width="1"/>
+                            </svg>
+                        </div>
+                        <div class="wx-val" id="wx-temp">—</div>
+                        <div class="wx-lbl">Temp °C</div>
+                    </div>
+                    <div class="wx-tile">
+                        <div class="wx-icon-wrap">
+                            <svg viewBox="0 0 36 36" fill="none">
+                                <path d="M18 5 C18 5 10 16 10 22 C10 27.5 13.6 31 18 31 C22.4 31 26 27.5 26 22 C26 16 18 5 18 5Z" fill="#2e9fd4" opacity="0.8"/>
+                                <path d="M18 8 C18 8 12 17.5 12 22 C12 26.4 14.7 28.5 18 28.5" stroke="white" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+                            </svg>
+                        </div>
+                        <div class="wx-val" id="wx-humidity">—</div>
+                        <div class="wx-lbl">Humidity %</div>
+                    </div>
+                    <div class="wx-tile">
+                        <div class="wx-icon-wrap">
+                            <svg viewBox="0 0 36 36" fill="none">
+                                <line x1="18" y1="5"  x2="18" y2="31" stroke="#2e9fd4" stroke-width="2" stroke-linecap="round"/>
+                                <line x1="5"  y1="18" x2="31" y2="18" stroke="#2e9fd4" stroke-width="2" stroke-linecap="round"/>
+                                <line x1="8.5"  y1="8.5"  x2="27.5" y2="27.5" stroke="#2e9fd4" stroke-width="2" stroke-linecap="round"/>
+                                <line x1="27.5" y1="8.5"  x2="8.5"  y2="27.5" stroke="#2e9fd4" stroke-width="2" stroke-linecap="round"/>
+                                <circle cx="18" cy="5"   r="2" fill="#1a6faf"/>
+                                <circle cx="18" cy="31"  r="2" fill="#1a6faf"/>
+                                <circle cx="5"  cy="18"  r="2" fill="#1a6faf"/>
+                                <circle cx="31" cy="18"  r="2" fill="#1a6faf"/>
+                                <circle cx="8.5"  cy="8.5"  r="2" fill="#4aab3c"/>
+                                <circle cx="27.5" cy="8.5"  r="2" fill="#4aab3c"/>
+                                <circle cx="8.5"  cy="27.5" r="2" fill="#4aab3c"/>
+                                <circle cx="27.5" cy="27.5" r="2" fill="#4aab3c"/>
+                                <circle cx="18" cy="18" r="3" fill="#f5c12e"/>
+                            </svg>
+                        </div>
+                        <div class="wx-val" id="wx-snow">—</div>
+                        <div class="wx-lbl">Snow cm</div>
+                    </div>
+                </div>
+                <div class="wx-desc" id="wx-desc">Fetching current conditions…</div>
+                <div class="wx-extra">
+                    <div class="wx-extra-item"><div class="wx-extra-lbl">Wind Speed</div><div class="wx-extra-val" id="wx-wind">— m/s</div></div>
+                    <div class="wx-extra-item"><div class="wx-extra-lbl">Feels Like</div><div class="wx-extra-val" id="wx-feels">— °C</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Temperature History -->
+        <div class="panel" style="flex:1;display:flex;flex-direction:column;">
+            <div class="panel-header gold">
+                <span class="panel-title">Temperature History</span>
+                <span class="panel-meta">Last 20 readings</span>
+            </div>
+            <div class="chart-wrap">
+                <canvas id="sensorGraph"></canvas>
+            </div>
+        </div>
+
     </div>
+</div>
+
+<!-- STATUS BAR -->
+<div id="statusbar">
+    <div class="sb-item"><div class="sb-dot green"></div>Sensor Network: Online</div>
+    <div class="sb-item"><div class="sb-dot green"></div>Map Layer: Active</div>
+    <div class="sb-item" id="wx-status-bar"><div class="sb-dot amber"></div>Weather API: Connecting</div>
+    <div class="sb-item"><div class="sb-dot blue"></div>AI Risk Model: Active</div>
+    <div class="sb-item" id="lof-status-bar"><div class="sb-dot purple"></div>LOF Model: Warming up</div>
+    <div class="sb-item" style="margin-left:auto;"><div class="sb-dot grey"></div>Auto-refresh: 3s</div>
+</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-    // -----------------------------
-    // Map Setup
-    // -----------------------------
-    var map = L.map('map').setView([43.4723,-80.5449], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-        attribution:'&copy; OpenStreetMap contributors'
-    }).addTo(map);
+// ─────────────────────────────────────────────
+// MAP
+// ─────────────────────────────────────────────
+var map = L.map('map', { zoomControl: false }).setView([43.4723, -80.5449], 15);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+var markerLayer = L.layerGroup().addTo(map);
 
-    var markerLayer = L.layerGroup().addTo(map);
-    var currentMarker = null;
-
-    // -----------------------------
-    // Chart Setup (Temperature over time)
-    // -----------------------------
-    var tempData = [];
-    var timeLabels = [];
-    var ctx = document.getElementById('sensorGraph').getContext('2d');
-    var chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: timeLabels,
-            datasets: [{
-                label: 'Temperature (°C)',
-                data: tempData,
-                borderColor: 'blue',
-                fill: false
-            }]
-        },
-        options: {
-            responsive: true,
-            animation: false,
-            scales: { x: { title: { display: true, text: 'Time' } } }
-        }
+function createPulsingIcon(color) {
+    return L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:20px;height:20px;">
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+                width:20px;height:20px;border-radius:50%;background:${color};opacity:0.18;
+                animation:ripple 1.8s ease-out infinite;"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+                width:12px;height:12px;border-radius:50%;background:${color};
+                border:2.5px solid rgba(255,255,255,0.85);box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>
+        </div>
+        <style>@keyframes ripple{0%{transform:translate(-50%,-50%) scale(1);opacity:.25}100%{transform:translate(-50%,-50%) scale(3.5);opacity:0}}</style>`,
+        iconSize: [20, 20], iconAnchor: [10, 10]
     });
+}
 
-    function updateGraph(temp) {
-        let now = new Date().toLocaleTimeString();
-        timeLabels.push(now);
-        tempData.push(temp);
-        if(timeLabels.length > 20){
-            timeLabels.shift();
-            tempData.shift();
+// ─────────────────────────────────────────────
+// CHART
+// ─────────────────────────────────────────────
+var tempData = [], timeLabels = [];
+var ctx = document.getElementById('sensorGraph').getContext('2d');
+var chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: timeLabels,
+        datasets: [{
+            label: 'Temp °C',
+            data: tempData,
+            borderColor: '#1a6faf',
+            borderWidth: 1.5,
+            backgroundColor: 'rgba(26,111,175,0.07)',
+            fill: true, tension: 0.35,
+            pointBackgroundColor: '#1a6faf',
+            pointRadius: 2.5, pointHoverRadius: 4
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 250 },
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: '#adb5bd', font: { family: 'Source Sans 3', size: 9 }, maxTicksLimit: 6 }, grid: { color: '#edf0f4' } },
+            y: { ticks: { color: '#6b7280', font: { family: 'Source Sans 3', size: 10 } }, grid: { color: '#edf0f4' } }
         }
-        chart.update();
+    }
+});
+
+function updateGraph(temp) {
+    let now = new Date().toLocaleTimeString('en-CA', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    timeLabels.push(now);
+    tempData.push(temp);
+    if (timeLabels.length > 20) { timeLabels.shift(); tempData.shift(); }
+    chart.update();
+}
+
+// ─────────────────────────────────────────────
+// CLOCK
+// ─────────────────────────────────────────────
+function updateDateTime() {
+    const now = new Date();
+    document.getElementById('clock-display').textContent = now.toLocaleTimeString('en-CA', { hour12: false });
+    document.getElementById('date-display').textContent = now.toLocaleDateString('en-CA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+}
+setInterval(updateDateTime, 1000);
+updateDateTime();
+
+// ─────────────────────────────────────────────
+// AI RISK SCORE (logistic regression proxy)
+// ─────────────────────────────────────────────
+function computeRiskScore(distance, temperature, humidity, snow) {
+    const logit = 2.5 + (-0.03 * Math.min(distance, 200))
+                      + (-0.04 * Math.max(temperature, -30))
+                      + ( 0.015 * Math.min(humidity || 60, 100))
+                      + ( 0.12  * Math.min(snow || 0, 50));
+    return Math.round(100 / (1 + Math.exp(-logit)));
+}
+
+let latestHumidity = 60, latestSnow = 0;
+
+function updateRiskUI(distance, temperature) {
+    const score = computeRiskScore(distance, temperature, latestHumidity, latestSnow);
+    const bar = document.getElementById('risk-bar');
+    bar.style.width = score + '%';
+    document.getElementById('risk-pct').textContent = score + '%';
+    const lbl = document.getElementById('risk-label');
+    if (score < 35)      { bar.style.background = '#2e7d4f'; lbl.textContent = 'Low Risk';      lbl.style.color = '#2e7d4f'; }
+    else if (score < 65) { bar.style.background = '#d97706'; lbl.textContent = 'Moderate Risk'; lbl.style.color = '#d97706'; }
+    else                 { bar.style.background = '#b91c1c'; lbl.textContent = 'High Risk';     lbl.style.color = '#b91c1c'; }
+}
+
+// ─────────────────────────────────────────────
+// LOCAL OUTLIER FACTOR — CLIENT-SIDE
+// Features: [distance, temperature, Δdistance, Δtemperature]
+// Window: last N_HISTORY points for k-NN comparison
+// Threshold: LOF > THRESHOLD → anomaly
+// ─────────────────────────────────────────────
+const LOF_K         = 5;       // neighbours
+const LOF_THRESHOLD = 1.8;     // LOF score > this → anomaly
+const WARMUP_N      = 10;      // min readings before LOF activates
+const HISTORY_MAX   = 60;      // rolling window size
+
+let sensorHistory   = [];      // [{dist, temp, ddist, dtemp}]
+let anomalyLog      = [];      // [{time, isAnomaly, score, reason}]
+let prevDist        = null;
+let prevTemp        = null;
+
+/** Euclidean distance between two 4-dim feature vectors */
+function euclidean(a, b) {
+    return Math.sqrt(
+        Math.pow(a[0] - b[0], 2) +
+        Math.pow(a[1] - b[1], 2) +
+        Math.pow(a[2] - b[2], 2) +
+        Math.pow(a[3] - b[3], 2)
+    );
+}
+
+/** Normalise a feature vector using rolling min/max from history */
+function normaliseFeatures(vec, history) {
+    const all = history.map(h => [h.dist, h.temp, h.ddist, h.dtemp]);
+    all.push(vec);
+    const mins = [0,1,2,3].map(i => Math.min(...all.map(v => v[i])));
+    const maxs = [0,1,2,3].map(i => Math.max(...all.map(v => v[i])));
+    return vec.map((v, i) => {
+        const range = maxs[i] - mins[i];
+        return range === 0 ? 0 : (v - mins[i]) / range;
+    });
+}
+
+/**
+ * Compute LOF score for a query point against a reference dataset.
+ * Returns a score: ~1.0 = normal, > threshold = anomaly.
+ */
+function computeLOF(queryVec, history) {
+    if (history.length < LOF_K + 1) return 1.0;
+
+    const allVecs = history.map(h => [h.dist, h.temp, h.ddist, h.dtemp]);
+
+    // Normalise all including query
+    const normAll  = allVecs.map(v => normaliseFeatures(v, history));
+    const normQuery = normaliseFeatures(queryVec, history);
+
+    // k-distances for every point in dataset
+    function kDist(idx) {
+        const dists = normAll
+            .map((v, j) => ({ d: euclidean(normAll[idx], v), j }))
+            .filter(x => x.j !== idx)
+            .sort((a, b) => a.d - b.d);
+        return dists.slice(0, LOF_K);
     }
 
-    // -----------------------------
-    // Weather Info
-    // -----------------------------
-    async function fetchWeather(){
-    try{
+    // reach-dist(p, o) = max(k-dist(o), dist(p, o))
+    function reachDist(p, o, kNeighboursO) {
+        const kDistO = kNeighboursO[kNeighboursO.length - 1].d;
+        return Math.max(kDistO, euclidean(normAll[p], normAll[o]));
+    }
+
+    // Local reachability density for a dataset point
+    function lrd(idx) {
+        const kn = kDist(idx);
+        const sum = kn.reduce((acc, { j }) => acc + reachDist(idx, j, kDist(j)), 0);
+        return kn.length / (sum + 1e-10);
+    }
+
+    // k-nearest neighbours of query
+    const queryDists = normAll
+        .map((v, j) => ({ d: euclidean(normQuery, v), j }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, LOF_K);
+
+    const kDistQuery = queryDists[queryDists.length - 1].d;
+
+    // lrd of query
+    const reachSum = queryDists.reduce((acc, { j }) => {
+        const kDistJ = kDist(j)[LOF_K - 1].d;
+        return acc + Math.max(kDistJ, euclidean(normQuery, normAll[j]));
+    }, 0);
+
+    const lrdQuery = LOF_K / (reachSum + 1e-10);
+
+    // LOF = avg lrd(neighbours) / lrd(query)
+    const lofScore = queryDists.reduce((acc, { j }) => acc + lrd(j), 0) / (LOF_K * lrdQuery);
+
+    return lofScore;
+}
+
+/** Describe which feature contributed most to the anomaly */
+function explainAnomaly(vec, history) {
+    if (history.length < 3) return 'Insufficient baseline data.';
+
+    const dists  = history.map(h => h.dist);
+    const temps  = history.map(h => h.temp);
+    const ddists = history.map(h => h.ddist);
+    const dtemps = history.map(h => h.dtemp);
+
+    function mean(arr) { return arr.reduce((a,b)=>a+b,0)/arr.length; }
+    function std(arr)  { const m=mean(arr); return Math.sqrt(arr.reduce((a,b)=>a+Math.pow(b-m,2),0)/arr.length); }
+
+    const zDist  = Math.abs((vec[0] - mean(dists))  / (std(dists)  + 0.01));
+    const zTemp  = Math.abs((vec[1] - mean(temps))  / (std(temps)  + 0.01));
+    const zDdist = Math.abs((vec[2] - mean(ddists)) / (std(ddists) + 0.01));
+    const zDtemp = Math.abs((vec[3] - mean(dtemps)) / (std(dtemps) + 0.01));
+
+    const labels = ['distance reading', 'temperature', 'distance change rate', 'temperature change rate'];
+    const scores = [zDist, zTemp, zDdist, zDtemp];
+    const topIdx = scores.indexOf(Math.max(...scores));
+    const z = scores[topIdx].toFixed(1);
+
+    return `Unusual ${labels[topIdx]} (z=${z}σ from baseline). May indicate sensor fault or sudden environmental change.`;
+}
+
+/** Compute deviation % for feature bars */
+function featureDeviations(vec, history) {
+    if (history.length < 2) return [0, 0, 0, 0];
+    function mean(arr) { return arr.reduce((a,b)=>a+b,0)/arr.length; }
+    function std(arr)  { const m=mean(arr); return Math.sqrt(arr.reduce((a,b)=>a+Math.pow(b-m,2),0)/arr.length)+0.01; }
+
+    const features = [
+        history.map(h=>h.dist), history.map(h=>h.temp),
+        history.map(h=>h.ddist), history.map(h=>h.dtemp)
+    ];
+
+    return features.map((arr, i) => {
+        const z = Math.abs((vec[i] - mean(arr)) / std(arr));
+        return Math.min(z / 4, 1); // normalise to 0-1 (4σ = full bar)
+    });
+}
+
+function updateAnomalyUI(lofScore, isAnomaly, reason, deviations, vec) {
+    // Ring
+    const circumference = 163.4;
+    const clampedScore  = Math.min(lofScore, 4.0);
+    const fraction      = Math.min((clampedScore - 1.0) / 3.0, 1.0);
+    const offset        = circumference * (1 - fraction);
+    const ring          = document.getElementById('anomaly-ring');
+    ring.style.strokeDashoffset = offset;
+    ring.style.stroke = isAnomaly ? '#7c3aed' : fraction > 0.3 ? '#d97706' : '#2e7d4f';
+
+    document.getElementById('lof-score-display').textContent = lofScore.toFixed(2);
+
+    // State badge
+    const badge = document.getElementById('anomaly-state-badge');
+    const stateText = document.getElementById('anomaly-state-text');
+    if (isAnomaly) {
+        badge.className = 'anomaly-state anomaly';
+        badge.querySelector('svg').innerHTML = '<path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" fill="none"/>';
+        stateText.textContent = 'Anomaly Detected';
+    } else {
+        badge.className = 'anomaly-state normal';
+        badge.querySelector('svg').innerHTML = '<polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" fill="none"/>';
+        stateText.textContent = 'Normal';
+    }
+
+    document.getElementById('anomaly-reason').textContent = reason;
+
+    // Feature bars
+    const barIds  = ['feat-dist-bar', 'feat-temp-bar', 'feat-ddist-bar', 'feat-dtemp-bar'];
+    const valIds  = ['feat-dist-val', 'feat-temp-val', 'feat-ddist-val', 'feat-dtemp-val'];
+    const vals    = [vec[0].toFixed(1)+'cm', vec[1].toFixed(1)+'°', vec[2].toFixed(1), vec[3].toFixed(1)];
+
+    deviations.forEach((dev, i) => {
+        const bar = document.getElementById(barIds[i]);
+        bar.style.width   = (dev * 100) + '%';
+        bar.style.background = dev > 0.75 ? '#7c3aed' : dev > 0.4 ? '#d97706' : '#1a6faf';
+        document.getElementById(valIds[i]).textContent = vals[i];
+    });
+
+    // Status bar
+    document.getElementById('lof-status-bar').innerHTML =
+        `<div class="sb-dot ${isAnomaly ? 'purple' : 'green'}"></div>LOF Model: ${isAnomaly ? 'ANOMALY' : 'Normal'} (${lofScore.toFixed(2)})`;
+}
+
+function addLogEntry(time, isAnomaly, score, reason) {
+    anomalyLog.unshift({ time, isAnomaly, score, reason });
+    if (anomalyLog.length > 5) anomalyLog.pop();
+
+    const container = document.getElementById('anomaly-log-items');
+    container.innerHTML = anomalyLog.map(entry => `
+        <div class="log-item">
+            <div class="log-dot ${entry.isAnomaly ? 'anom' : 'norm'}"></div>
+            <span class="log-time">${entry.time}</span>
+            <span class="log-msg">${entry.isAnomaly ? '⚠ ' + entry.reason.split('.')[0] : 'Normal reading'}</span>
+            <span class="log-score">${entry.score.toFixed(2)}</span>
+        </div>
+    `).join('');
+}
+
+function runAnomalyDetection(distance, temperature) {
+    const ddist = prevDist !== null ? distance - prevDist : 0;
+    const dtemp = prevTemp !== null ? temperature - prevTemp : 0;
+    prevDist = distance;
+    prevTemp = temperature;
+
+    const vec = [distance, temperature, ddist, dtemp];
+
+    // Update rolling history
+    sensorHistory.push({ dist: distance, temp: temperature, ddist, dtemp });
+    if (sensorHistory.length > HISTORY_MAX) sensorHistory.shift();
+
+    if (sensorHistory.length < WARMUP_N) {
+        document.getElementById('anomaly-reason').textContent =
+            `Collecting baseline… (${sensorHistory.length}/${WARMUP_N} readings)`;
+        document.getElementById('lof-score-display').textContent = '—';
+        return;
+    }
+
+    const lofScore  = computeLOF(vec, sensorHistory.slice(0, -1)); // exclude current
+    const isAnomaly = lofScore > LOF_THRESHOLD;
+    const reason    = isAnomaly
+        ? explainAnomaly(vec, sensorHistory.slice(0, -1))
+        : 'Sensor readings within expected range. No deviations detected.';
+    const devs = featureDeviations(vec, sensorHistory.slice(0, -1));
+
+    updateAnomalyUI(lofScore, isAnomaly, reason, devs, vec);
+
+    const now = new Date().toLocaleTimeString('en-CA', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    addLogEntry(now, isAnomaly, lofScore, reason);
+
+    // Change marker color if anomaly
+    return isAnomaly;
+}
+
+// ─────────────────────────────────────────────
+// WEATHER
+// ─────────────────────────────────────────────
+const OWM_KEY = '274ff1c6a431b1289adeacc8bbe6df7f';
+const OWM_URL = `https://api.openweathermap.org/data/2.5/weather?q=Waterloo,CA&appid=${OWM_KEY}&units=metric`;
+
+async function fetchWeather() {
+    try {
         const res = await fetch('/weather');
+        if (res.ok) {
+            const data = await res.json();
+            latestHumidity = data.humidity || 60;
+            latestSnow     = data.snow_depth || 0;
+            applyWeatherData({ temp: data.temperature, humidity: data.humidity, snow: data.snow_depth, desc: 'Local sensor', wind: '—', feels: '—' });
+            return;
+        }
+    } catch(e) {}
+
+    try {
+        const res = await fetch(OWM_URL);
+        if (!res.ok) throw new Error('OWM error');
         const data = await res.json();
-        document.getElementById('weather').textContent =
-            `Temp: ${data.temperature} °C, Humidity: ${data.humidity}%, Snow Depth: ${data.snow_depth} cm`;
-    }catch(err){
-        console.log('Weather fetch error:',err);
+        latestHumidity = data.main.humidity;
+        latestSnow = data.snow ? (data.snow['1h'] * 100) : 0;
+        applyWeatherData({
+            temp:     data.main.temp.toFixed(1),
+            humidity: data.main.humidity,
+            snow:     data.snow ? (data.snow['1h'] * 100).toFixed(1) : '0',
+            desc:     data.weather[0].description,
+            wind:     data.wind.speed.toFixed(1),
+            feels:    data.main.feels_like.toFixed(1)
+        });
+        setWxStatus('ok', 'Live');
+    } catch(err) {
+        document.getElementById('wx-desc').textContent = 'Weather data unavailable';
+        setWxStatus('error', 'Offline');
     }
 }
 
-// update every 1 minute
+function setWxStatus(state, label) {
+    const pill = document.getElementById('wx-api-pill');
+    pill.className = 'api-pill ' + state;
+    pill.innerHTML = `<span class="api-dot"></span>${label}`;
+    const dotCls = state === 'ok' ? 'green' : state === 'error' ? 'red' : 'amber';
+    const wording = state === 'ok' ? 'Live' : state === 'error' ? 'Offline' : 'Connecting';
+    document.getElementById('wx-status-bar').innerHTML =
+        `<div class="sb-dot ${dotCls}"></div>Weather API: ${wording}`;
+}
+
+function applyWeatherData({ temp, humidity, snow, desc, wind, feels }) {
+    document.getElementById('wx-temp').textContent     = temp;
+    document.getElementById('wx-humidity').textContent = humidity;
+    document.getElementById('wx-snow').textContent     = snow;
+    document.getElementById('wx-desc').textContent     = desc.charAt(0).toUpperCase() + desc.slice(1);
+    document.getElementById('wx-wind').textContent     = wind + ' m/s';
+    document.getElementById('wx-feels').textContent    = feels + ' °C';
+}
+
 setInterval(fetchWeather, 60000);
 fetchWeather();
 
-    // -----------------------------
-    // Date & Time
-    // -----------------------------
-    function updateDateTime(){
-        const now = new Date();
-        document.getElementById('date').textContent = now.toLocaleDateString();
-        document.getElementById('time').textContent = now.toLocaleTimeString();
-    }
-    setInterval(updateDateTime, 1000);
-    updateDateTime();
+// ─────────────────────────────────────────────
+// SENSOR DATA POLLING
+// ─────────────────────────────────────────────
+function showUpdateFlash() {
+    const el = document.getElementById('update-flash');
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 1000);
+}
 
-    // -----------------------------
-    // Fetch Sensor Data from Flask
-    // -----------------------------
-    async function fetchData() {
-        try {
-            const response = await fetch('/points');
-            const points = await response.json();
+async function fetchData() {
+    try {
+        const response = await fetch('/points');
+        const points = await response.json();
+        markerLayer.clearLayers();
 
-            markerLayer.clearLayers();
+        if (points.length > 0) {
+            const point = points[points.length - 1];
+            const isHazard = (point.status === "HAZARD");
 
-            if(points.length > 0){
-                const point = points[points.length-1]; // use latest
+            // Run anomaly detection — may override marker colour
+            const isAnomaly = runAnomalyDetection(point.distance, point.temperature);
 
-                // -----------------------------
-                // Invert Hardware Status Logic
-                // -----------------------------
-                let color = (point.status === "HAZARD") ? "red" : "green";  // inverted
-                let displayStatus = (point.status === "HAZARD") ? "Hazard" : "Safe"; // inverted
+            let markerColor = isAnomaly ? '#7c3aed' : (isHazard ? '#b91c1c' : '#2e7d4f');
+            const displayStatus = isHazard ? "HAZARD" : "SAFE";
 
-                // Update dashboard panel
-                document.getElementById('sensor-data').innerHTML = `
-                    <div class="data-item">
-                        <b>Sensor:</b> (${point.lat.toFixed(4)}, ${point.lon.toFixed(4)})<br>
-                        Distance: ${point.distance.toFixed(2)} cm<br>
-                        Temperature: ${point.temperature.toFixed(2)} °C
+            const badge = document.getElementById('status-badge');
+            badge.className = 'status-badge ' + (isHazard ? 'hazard' : 'safe');
+            document.getElementById('status-icon').textContent = isHazard ? '⚠' : '✓';
+            document.getElementById('status-text').textContent = displayStatus;
+
+            document.getElementById('val-distance').innerHTML = `${point.distance.toFixed(1)}<span class="m-unit">cm</span>`;
+            document.getElementById('val-temp').innerHTML     = `${point.temperature.toFixed(1)}<span class="m-unit">°C</span>`;
+            document.getElementById('val-lat').textContent    = point.lat.toFixed(5);
+            document.getElementById('val-lon').textContent    = point.lon.toFixed(5);
+            document.getElementById('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString('en-CA', { hour12: false });
+
+            updateGraph(point.temperature);
+            updateRiskUI(point.distance, point.temperature);
+
+            const icon = createPulsingIcon(markerColor);
+            const marker = L.marker([point.lat, point.lon], { icon })
+                .bindPopup(`
+                    <div style="font-family:'Source Sans 3',sans-serif;font-size:12px;line-height:1.8;color:#374151;">
+                        <div style="font-weight:700;font-size:13px;color:#111827;margin-bottom:5px;">Node WL-001</div>
+                        <div>Distance: <b>${point.distance.toFixed(2)} cm</b></div>
+                        <div>Temperature: <b>${point.temperature.toFixed(2)} °C</b></div>
+                        <div>Status: <b style="color:${isHazard?'#b91c1c':'#2e7d4f'};">${displayStatus}</b></div>
+                        ${isAnomaly ? `<div style="color:#7c3aed;font-weight:600;">⚠ Anomaly Detected</div>` : ''}
+                        <div style="color:#adb5bd;font-size:10px;margin-top:4px;">${point.lat.toFixed(6)}, ${point.lon.toFixed(6)}</div>
                     </div>
-                `;
-                document.getElementById('current-status').textContent = displayStatus;
-
-                // Update chart
-                updateGraph(point.temperature);
-
-                // Add/update marker
-                currentMarker = L.circleMarker([point.lat, point.lon], {
-                    radius:10,
-                    color: color,
-                    fillColor: color,
-                    fillOpacity:0.8
-                }).bindPopup(
-                    `Distance: ${point.distance.toFixed(2)} cm<br>
-                     Temp: ${point.temperature.toFixed(2)} °C<br>
-                     Status: ${displayStatus}`
-                );
-                markerLayer.addLayer(currentMarker);
-            }
-
-        } catch(err) {
-            console.log("Error fetching data:", err);
+                `);
+            markerLayer.addLayer(marker);
+            showUpdateFlash();
         }
+    } catch(err) {
+        console.log("Error fetching data:", err);
     }
+}
 
-    fetchData();
-    setInterval(fetchData, 3000); // update every 3 seconds
-
+fetchData();
+setInterval(fetchData, 3000);
 </script>
 </body>
 </html>
